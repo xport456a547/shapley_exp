@@ -200,14 +200,14 @@ class BaseExplanationModel():
 
         return float(accs) / len(data)
         
-    def loss_difference(self, test_data, criterion, reesample=1):
+    def loss_difference(self, test_data, criterion, resample=1):
         
         with torch.no_grad():
             self.model.eval()
             accuracy = []
             loss = []
 
-            for i in range(reesample):
+            for i in range(resample):
                 for data in test_data:
 
                     inputs, labels, mask = data

@@ -117,7 +117,7 @@ class EstimateModel():
         for i in range(19):
             t = round(0.05 + i*0.05, 3)
             features = s.extract_features(outputs, top=t)
-            diff, std = s.loss_difference(features, self.criterion, reesample=self.train_config.loss_difference_reesample)
+            diff, std = s.loss_difference(features, self.criterion, resample=self.train_config.loss_difference_resample)
             logging.info(f"[{self.model_name}][top diff std] ({t}, {round(diff, 4)}, {round(std, 4)})")
             losses.append((t, diff, std))
 
