@@ -1,0 +1,10 @@
+__pycache__
+datasets
+tmp/*
+outputs
+.vscode
+_.py
+nohup.out 
+run_script.sh
+run_script2.sh
+test.ipynb
