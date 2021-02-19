@@ -10,7 +10,7 @@ import time
 
 def get_config(file):
     with open(file, 'r') as f:
-        return json.loads(f.read(), object_hook=lambda d: SimpleNamespace(**d))
+        return json.loads(f.read(), object_hook=lambda d: SimpleNamespace(**d)), file
     
 def set_all_seeds(seed):
     np.random.seed(seed)

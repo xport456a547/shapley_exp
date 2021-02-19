@@ -12,9 +12,6 @@ from captum.attr import (
     DeepLift,
     DeepLiftShap,
     IntegratedGradients,
-    LayerConductance,
-    NeuronConductance,
-    NoiseTunnel,
 )
 
 
@@ -243,15 +240,13 @@ class BaseExplanationModel():
         values = (values - min_) / (max_ - min_)
         return values.reshape(n, c, h, w)
 
-
-
 class IntegratedGradientsModel(BaseExplanationModel):
 
     def __init__(self, model, criterion=None, noise_distribution=None, device="cuda"):
 
         super().__init__(model, criterion, noise_distribution, device)
 
-    def fit(self, data_loader, n_samples=16):
+    def fit(self, data_loader, n_samples=16, zero_baseline=True):
         
         self.model.eval()
         outputs = []
@@ -259,91 +254,25 @@ class IntegratedGradientsModel(BaseExplanationModel):
         for i, data in enumerate(data_loader):
             _, img, __, ___ = data 
 
-            shapley_score, label = self._fit(_, img)
+            shapley_score, label = self._fit(_, img, zero_baseline)
             outputs.append((_, img.cpu(), __, shapley_score.detach().cpu(), label.detach().cpu()))
 
             if i + 1 == n_samples:
                 break
         return outputs
 
-    def _fit(self, raw_img, sample):
+    def _fit(self, raw_img, sample, zero_baseline):
         
         with torch.no_grad():
             ig = IntegratedGradients(self.model)
             sample = sample.to(self.device)
             label = self.model(sample).argmax(dim=-1)
 
-            attributions = ig.attribute(sample, target=label, return_convergence_delta=False).float()
-            #attributions = ig.attribute(sample, raw_img.to(self.device), target=label, return_convergence_delta=False)
-            #attributions = ig.attribute(sample, sample, target=label, return_convergence_delta=False)
-        return attributions.mean(dim=1, keepdim=True), label
-
-class DeepLiftModel(BaseExplanationModel):
-
-    def __init__(self, model, criterion=None, noise_distribution=None, device="cuda"):
-
-        super().__init__(model, criterion, noise_distribution, device)
-
-    def fit(self, data_loader, n_samples=16):
-        
-        self.model.eval()
-        outputs = []
-
-        for i, data in enumerate(data_loader):
-            _, img, __, ___ = data 
-
-            shapley_score, label = self._fit(_, img)
-            outputs.append((_, img.cpu(), __, shapley_score.detach().cpu(), label.detach().cpu()))
-
-            if i + 1 == n_samples:
-                break
-        return outputs
-
-    def _fit(self, raw_img, sample):
-        
-        with torch.no_grad():
-            ig = DeepLift(self.model)
-            sample = sample.to(self.device)
-            label = self.model(sample).argmax(dim=-1)
-
-            attributions = ig.attribute(sample, target=label, return_convergence_delta=False).float()
-            #attributions = ig.attribute(sample, raw_img.to(self.device), target=label, return_convergence_delta=False)
-            #attributions = ig.attribute(sample, sample, target=label, return_convergence_delta=False)
-
-        return attributions.mean(dim=1, keepdim=True), label
-
-class DeepLiftShapModel(BaseExplanationModel):
-
-    def __init__(self, model, criterion=None, noise_distribution=None, device="cuda"):
-
-        super().__init__(model, criterion, noise_distribution, device)
-
-    def fit(self, data_loader, n_samples=16, n_reestimations=16, zero_baseline=True):
-        
-        self.model.eval()
-        outputs = []
-
-        for i, data in enumerate(data_loader):
-            _, img, __, ___ = data 
-
-            shapley_score, label = self._fit(_, img, n_reestimations, zero_baseline)
-            outputs.append((_, img.cpu(), __, shapley_score.detach().cpu(), label.detach().cpu()))
-
-            if i + 1 == n_samples:
-                break
-        return outputs
-
-    def _fit(self, raw_img, sample, n_reestimations, zero_baseline):
-        
-        with torch.no_grad():
-            ig = DeepLiftShap(self.model)
-            sample = sample.to(self.device)
-            label = self.model(sample).argmax(dim=-1)
-
             if zero_baseline:
-                attributions = ig.attribute(sample, baselines=torch.zeros_like(sample), stdevs=float(self.noise_distribution[-1]), n_samples=n_reestimations, target=label, return_convergence_delta=False).float()
+                attributions = ig.attribute(sample, baselines=torch.zeros_like(sample), target=label, return_convergence_delta=False).float()
             else:
-                attributions = ig.attribute(sample, baselines=sample, stdevs=float(self.noise_distribution[-1]), target=label, n_samples=n_reestimations, return_convergence_delta=False).float()
+                attributions = ig.attribute(sample, sample, target=label, return_convergence_delta=False).float()
+
         return attributions.mean(dim=1, keepdim=True), label
 
 class GradientShapModel(BaseExplanationModel):
@@ -380,14 +309,13 @@ class GradientShapModel(BaseExplanationModel):
                 attributions = ig.attribute(sample, baselines=sample, stdevs=float(self.noise_distribution[-1]), target=label, n_samples=n_reestimations, return_convergence_delta=False).float()
         return attributions.mean(dim=1, keepdim=True), label
 
-class SampledXLossModel(BaseExplanationModel):
+class DeepLiftModel(BaseExplanationModel):
 
-    def __init__(self, model, criterion=None, noise_distribution=(0, 0), batch_size=16, extra_context=1, device="cuda"):
+    def __init__(self, model, criterion=None, noise_distribution=None, device="cuda"):
 
-        super().__init__(model, criterion, noise_distribution, batch_size, device)
-        self.extra_context = extra_context
+        super().__init__(model, criterion, noise_distribution, device)
 
-    def fit(self, data_loader, n_samples=16, n_reestimations=128):
+    def fit(self, data_loader, n_samples=16, zero_baseline=True):
         
         self.model.eval()
         outputs = []
@@ -395,120 +323,60 @@ class SampledXLossModel(BaseExplanationModel):
         for i, data in enumerate(data_loader):
             _, img, __, ___ = data 
 
-            shapley_score, label = self._fit(img, n_reestimations)
+            shapley_score, label = self._fit(_, img)
             outputs.append((_, img.cpu(), __, shapley_score.detach().cpu(), label.detach().cpu()))
 
             if i + 1 == n_samples:
                 break
         return outputs
 
-    def _fit(self, sample, n_reestimations):
+    def _fit(self, raw_img, sample, zero_baseline):
         
-        _, c, h, w = sample.size()
+        with torch.no_grad():
+            ig = DeepLift(self.model)
+            sample = sample.to(self.device)
+            label = self.model(sample).argmax(dim=-1)
 
-        v_n, label, gradient = self.initial_step(sample, return_grad=True)
+            if zero_baseline:
+                attributions = ig.attribute(sample, baselines=torch.zeros_like(sample), target=label, return_convergence_delta=False).float()
+            else:
+                attributions = ig.attribute(sample, sample, target=label, return_convergence_delta=False).float()
 
-        gradient = gradient.norm(dim=1, keepdim=True)
-        probs = torch.softmax(gradient.reshape(-1), dim=-1)
+        return attributions.mean(dim=1, keepdim=True), label
+
+class DeepLiftShapModel(BaseExplanationModel):
+
+    def __init__(self, model, criterion=None, noise_distribution=None, device="cuda"):
+
+        super().__init__(model, criterion, noise_distribution, device)
+
+    def fit(self, data_loader, n_samples=16, n_reestimations=16, zero_baseline=True):
         
-        count = 0
-        values_inf = torch.zeros_like(gradient) + 100
-        values_sup = torch.zeros_like(gradient) + 100
-        mask_sum = torch.zeros_like(gradient) + 1e-6
+        self.model.eval()
+        outputs = []
 
-        for _ in range(1):
-            count = 0
-            while count < n_reestimations:
+        for i, data in enumerate(data_loader):
+            _, img, __, ___ = data 
 
-                n = min(self.batch_size, n_reestimations - count)
+            shapley_score, label = self._fit(_, img, n_reestimations, zero_baseline)
+            outputs.append((_, img.cpu(), __, shapley_score.detach().cpu(), label.detach().cpu()))
 
-                label = label.to(self.device)
-                sample = sample.to(self.device).expand(n, -1, -1, -1)
+            if i + 1 == n_samples:
+                break
+        return outputs
 
-                mask = self.sample(probs.expand(n, -1)).reshape(n, 1, h, w)
-                #mask = self.sample((torch.ones_like(probs) / (h * w)).expand(n, -1)).reshape(n, 1, h, w)
-
-                #v = (values_sup).sum(dim=0, keepdim=True).reshape(-1)
-                #mask = self.sample(torch.softmax(v, dim=-1).expand(n, -1)).reshape(n, 1, h, w)
-
-                #mask = self.sample2(values_inf, n)
-
-                #extra_context = randrange(0, self.extra_context//2) * 2 + 1
-                extra_context = self.extra_context
-
-                if _ == 0:
-                    mask2 = nn.MaxPool2d(kernel_size=self.extra_context, stride=1, padding=self.extra_context//2)(mask)
-                else:
-                    mask2 = nn.MaxPool2d(kernel_size=self.extra_context // (_*2) + 1, stride=1, padding=(self.extra_context // (_*4)))(mask)
-
-                noise, noise_mask = self.get_noise(mask2)
-
-                with torch.no_grad():
-                    #values_sup += (self.step(sample * (1 - mask2) + mask2 * noise, label.expand(n)) * mask2).sum(dim=0, keepdim=True) #/ extra_context
-                    #values_inf += (self.step(sample * mask2 + (1 - mask2) * noise, label.expand(n)) * mask2).sum(dim=0, keepdim=True) #/ extra_context
-                    m = mask_sum.clone()
-                    m[m < 1] = 1
-                    values_sup = values_sup * m + (self.step(sample * (1 - mask2) + mask2 * noise, label.expand(n)) * mask2).sum(dim=0, keepdim=True)
-                    values_inf = values_inf * m + (self.step(sample * mask2 + (1 - mask2) * noise, label.expand(n)) * mask2).sum(dim=0, keepdim=True)
-
-                mask_sum += mask2.sum(dim=0, keepdim=True)
-
-                m = mask_sum.clone()
-                m[m < 1] = 1
-                values_sup /= m
-                values_inf /= m
-
-                count += n
-
+    def _fit(self, raw_img, sample, n_reestimations, zero_baseline):
         
-        values_inf -= 100 / mask_sum 
-        values_sup -= 100 / mask_sum
+        with torch.no_grad():
+            ig = DeepLiftShap(self.model)
+            sample = sample.to(self.device)
+            label = self.model(sample).argmax(dim=-1)
 
-        #values_inf /= mask_sum 
-        #values_sup /= mask_sum 
-
-        #print(mask_sum.flatten().min(), mask_sum.flatten().max())
-        values_sup = v_n - values_sup
-
-        sum_inf = values_inf.reshape(1, 1, -1).sum(dim=-1, keepdim=True).unsqueeze(-1)
-        sum_sup = values_sup.reshape(1, 1, -1).sum(dim=-1, keepdim=True).unsqueeze(-1)
-        probs = probs.reshape(1, 1, h, w)
-
-        w_ = (v_n - sum_sup) / (sum_inf - sum_sup)
-
-        #values_inf[values_inf == 0] = -10
-        #values_sup[values_sup == 0] = -10
-
-        values = values_inf * w_ + (1 - w_) * values_sup
-
-        values = values.mean(dim=1, keepdim=True)
-        print(w_)
-        #values = self.minmax(values)
-        #gradient = self.minmax(gradient)
-        #return values + gradient, label
-
-        #return values * probs, label
-        return values, label
-        #return self.minmax(values), label
-
-    def sample(self, probs):
-
-        mask = 0
-        for i in range(2):
-            sample = Categorical(probs=probs).sample()
-            mask += nn.functional.one_hot(sample, num_classes=probs.size()[-1]).float()
-        mask[mask > 1] = 1
-        return mask
-
-    def sample2(self, x, n):
-        _, c, h, w = x.size()
-        x = x.reshape(-1)
-        _, idx = torch.topk(x, k=n, largest=True)
-        output = torch.zeros(n, c*h*w, device=x.device)
-
-        idx = idx.unsqueeze(-1)
-        output = torch.scatter(output, dim=-1, index=idx, src=torch.ones_like(idx).float())
-        return output.reshape(n, c, h, w)
+            if zero_baseline:
+                attributions = ig.attribute(sample, baselines=torch.zeros_like(sample), stdevs=float(self.noise_distribution[-1]), n_samples=n_reestimations, target=label, return_convergence_delta=False).float()
+            else:
+                attributions = ig.attribute(sample, baselines=sample, stdevs=float(self.noise_distribution[-1]), target=label, n_samples=n_reestimations, return_convergence_delta=False).float()
+        return attributions.mean(dim=1, keepdim=True), label
 
 class EqualSurplusModel(BaseExplanationModel):
 
@@ -666,6 +534,139 @@ class EqualXSurplusModel(BaseExplanationModel):
         shapley_values_inf /= masks
         shapley_values_sup /= masks
         return shapley_values_inf, shapley_values_sup
+
+
+
+###TEST
+class SampledXLossModel(BaseExplanationModel):
+
+    def __init__(self, model, criterion=None, noise_distribution=(0, 0), batch_size=16, extra_context=1, device="cuda"):
+
+        super().__init__(model, criterion, noise_distribution, batch_size, device)
+        self.extra_context = extra_context
+
+    def fit(self, data_loader, n_samples=16, n_reestimations=128):
+        
+        self.model.eval()
+        outputs = []
+
+        for i, data in enumerate(data_loader):
+            _, img, __, ___ = data 
+
+            shapley_score, label = self._fit(img, n_reestimations)
+            outputs.append((_, img.cpu(), __, shapley_score.detach().cpu(), label.detach().cpu()))
+
+            if i + 1 == n_samples:
+                break
+        return outputs
+
+    def _fit(self, sample, n_reestimations):
+        
+        _, c, h, w = sample.size()
+
+        v_n, label, gradient = self.initial_step(sample, return_grad=True)
+
+        gradient = gradient.norm(dim=1, keepdim=True)
+        probs = torch.softmax(gradient.reshape(-1), dim=-1)
+        
+        count = 0
+        values_inf = torch.zeros_like(gradient) + 100
+        values_sup = torch.zeros_like(gradient) + 100
+        mask_sum = torch.zeros_like(gradient) + 1e-6
+
+        for _ in range(1):
+            count = 0
+            while count < n_reestimations:
+
+                n = min(self.batch_size, n_reestimations - count)
+
+                label = label.to(self.device)
+                sample = sample.to(self.device).expand(n, -1, -1, -1)
+
+                mask = self.sample(probs.expand(n, -1)).reshape(n, 1, h, w)
+                #mask = self.sample((torch.ones_like(probs) / (h * w)).expand(n, -1)).reshape(n, 1, h, w)
+
+                #v = (values_sup).sum(dim=0, keepdim=True).reshape(-1)
+                #mask = self.sample(torch.softmax(v, dim=-1).expand(n, -1)).reshape(n, 1, h, w)
+
+                #mask = self.sample2(values_inf, n)
+
+                #extra_context = randrange(0, self.extra_context//2) * 2 + 1
+                extra_context = self.extra_context
+
+                if _ == 0:
+                    mask2 = nn.MaxPool2d(kernel_size=self.extra_context, stride=1, padding=self.extra_context//2)(mask)
+                else:
+                    mask2 = nn.MaxPool2d(kernel_size=self.extra_context // (_*2) + 1, stride=1, padding=(self.extra_context // (_*4)))(mask)
+
+                noise, noise_mask = self.get_noise(mask2)
+
+                with torch.no_grad():
+                    #values_sup += (self.step(sample * (1 - mask2) + mask2 * noise, label.expand(n)) * mask2).sum(dim=0, keepdim=True) #/ extra_context
+                    #values_inf += (self.step(sample * mask2 + (1 - mask2) * noise, label.expand(n)) * mask2).sum(dim=0, keepdim=True) #/ extra_context
+                    m = mask_sum.clone()
+                    m[m < 1] = 1
+                    values_sup = values_sup * m + (self.step(sample * (1 - mask2) + mask2 * noise, label.expand(n)) * mask2).sum(dim=0, keepdim=True)
+                    values_inf = values_inf * m + (self.step(sample * mask2 + (1 - mask2) * noise, label.expand(n)) * mask2).sum(dim=0, keepdim=True)
+
+                mask_sum += mask2.sum(dim=0, keepdim=True)
+
+                m = mask_sum.clone()
+                m[m < 1] = 1
+                values_sup /= m
+                values_inf /= m
+
+                count += n
+
+        
+        values_inf -= 100 / mask_sum 
+        values_sup -= 100 / mask_sum
+
+        #values_inf /= mask_sum 
+        #values_sup /= mask_sum 
+
+        #print(mask_sum.flatten().min(), mask_sum.flatten().max())
+        values_sup = v_n - values_sup
+
+        sum_inf = values_inf.reshape(1, 1, -1).sum(dim=-1, keepdim=True).unsqueeze(-1)
+        sum_sup = values_sup.reshape(1, 1, -1).sum(dim=-1, keepdim=True).unsqueeze(-1)
+        probs = probs.reshape(1, 1, h, w)
+
+        w_ = (v_n - sum_sup) / (sum_inf - sum_sup)
+
+        #values_inf[values_inf == 0] = -10
+        #values_sup[values_sup == 0] = -10
+
+        values = values_inf * w_ + (1 - w_) * values_sup
+
+        values = values.mean(dim=1, keepdim=True)
+        print(w_)
+        #values = self.minmax(values)
+        #gradient = self.minmax(gradient)
+        #return values + gradient, label
+
+        #return values * probs, label
+        return values, label
+        #return self.minmax(values), label
+
+    def sample(self, probs):
+
+        mask = 0
+        for i in range(2):
+            sample = Categorical(probs=probs).sample()
+            mask += nn.functional.one_hot(sample, num_classes=probs.size()[-1]).float()
+        mask[mask > 1] = 1
+        return mask
+
+    def sample2(self, x, n):
+        _, c, h, w = x.size()
+        x = x.reshape(-1)
+        _, idx = torch.topk(x, k=n, largest=True)
+        output = torch.zeros(n, c*h*w, device=x.device)
+
+        idx = idx.unsqueeze(-1)
+        output = torch.scatter(output, dim=-1, index=idx, src=torch.ones_like(idx).float())
+        return output.reshape(n, c, h, w)
 
 class SampledEqualXSurplusModel(BaseExplanationModel):
 

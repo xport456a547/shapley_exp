@@ -44,7 +44,12 @@ class EstimateModel():
                 device=self.train_config.device
                 )
 
-            outputs = s.fit(shapley_loader, n_samples=self.train_config.test_size, n_reestimations=model_config.n_reestimations)
+            outputs = s.fit(
+                shapley_loader, 
+                n_samples=self.train_config.test_size, 
+                n_reestimations=self.model_config.n_reestimations,
+                zero_baseline=self.model_config.zero_baseline
+                )
 
         elif self.model_name == "deepliftshap":
             s = GradientShapModel(
@@ -54,7 +59,12 @@ class EstimateModel():
                 device=self.train_config.device
                 )
 
-            outputs = s.fit(shapley_loader, n_samples=self.train_config.test_size, n_reestimations=model_config.n_reestimations)
+            outputs = s.fit(
+                shapley_loader, 
+                n_samples=self.train_config.test_size, 
+                n_reestimations=self.model_config.n_reestimations, 
+                zero_baseline=self.model_config.zero_baseline
+                )
 
         elif self.model_name == "equalsurplus":
             s = EqualSurplusModel(

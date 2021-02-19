@@ -1,0 +1,14 @@
+{
+    "model": "equalxsurplus",
+
+    "k_reestimate": 1,
+    "block_size": 8,
+    "stride": 8,
+
+    "mask_inputs": true,
+    "mask_mean": 0,
+    "mask_std": 1,
+
+    "full_mask_only": false,
+    "circular_mask": true
+}
