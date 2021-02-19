@@ -6,7 +6,7 @@
     "train_batch_size": 32,
     "test_batch_size": 128,
 
-    "test_size": 16,
+    "test_size": 1024,
     "loss_difference_reesample": 8,
 
     "seed": 123,
