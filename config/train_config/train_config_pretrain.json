@@ -7,7 +7,7 @@
     "test_batch_size": 128,
 
     "test_size": 1024,
-    "loss_difference_resample": 8,
+    "loss_difference_resample": 16,
 
     "seed": 123,
     "device": "cuda"

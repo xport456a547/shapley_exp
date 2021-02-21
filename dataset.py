@@ -81,7 +81,7 @@ class TrainingDataset():
         mask[(mask == 2.0) | (mask == 3.0)] = 0.0
         return mask
 
-    def get_image(self, d):
+    def get_image(self, d, noise):
 
         transform = transforms.Compose([
             transforms.Resize(256), 
@@ -108,13 +108,8 @@ class TrainingDataset():
         segmentation = imread(os.path.join(dataset_directory, "annotations/trimaps/" + name + ".png"), mode="L")
         segmentation = transform_base(torch.tensor(self.preprocess_mask(segmentation)).unsqueeze(0))
 
-
         if self.random_mask_distribution is not None:
-            noise = torch.normal(
-                mean=torch.zeros_like(img) + self.random_mask_distribution[0], 
-                std=torch.zeros_like(img) + self.random_mask_distribution[1]
-                )
-            return (img_base, img * segmentation + (1 - segmentation) * noise, segmentation, torch.tensor(label))
+            return (img_base, img * segmentation + (1 - segmentation) * noise.squeeze(0), segmentation, torch.tensor(label))
 
         return (img_base, img, segmentation, torch.tensor(label))
 
@@ -149,10 +144,17 @@ class TrainingDataset():
         else:
             logging.info(f"Skipping segmentation mask")
 
+        if self.random_mask_distribution is not None:
+            z = torch.zeros(len(annotation_file), 3, 224, 224)
+            noise = torch.normal(
+                mean=z + self.random_mask_distribution[0], 
+                std=z + self.random_mask_distribution[1]
+                ).split(dim=0, split_size=1)
+        else:
+            noise = [None]*len(annotation_file)
 
         with ThreadPool(processes=None) as pool:
-            outputs = pool.map(self.get_image, annotation_file)
+            outputs = pool.starmap(self.get_image, zip(annotation_file, noise))
 
-        random.seed(42)
         random.shuffle(outputs)
         return outputs[:-test_size], outputs[-test_size:]

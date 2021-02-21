@@ -12,15 +12,14 @@ def get_config(file):
     with open(file, 'r') as f:
         return json.loads(f.read(), object_hook=lambda d: SimpleNamespace(**d)), file
     
-def set_all_seeds(seed):
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.enabled = False
+def set_all_seeds(seed_value):
+    np.random.seed(seed_value) # cpu vars
+    torch.manual_seed(seed_value) # cpu  vars
+    random.seed(seed_value) # Python
+    torch.cuda.manual_seed(seed_value)
+    torch.cuda.manual_seed_all(seed_value) # gpu vars
+    torch.backends.cudnn.deterministic = True  #needed
     torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
 
 def prepare_output_directory(train_config, model_config):
 

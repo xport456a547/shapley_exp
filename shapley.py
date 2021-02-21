@@ -223,7 +223,7 @@ class BaseExplanationModel():
                     #labels = torch.argmax(true_outputs, dim=-1)
                     accuracy.append((predicted == labels).flatten().float().cpu())
 
-                    loss.append(criterion(true_outputs, labels).cpu() - criterion(masked_outputs, labels).cpu())
+                    loss.append((criterion(true_outputs, labels).cpu() - criterion(masked_outputs, labels).cpu()).abs())
 
             loss = torch.cat(loss)
             return float(loss.mean()), float(loss.std())

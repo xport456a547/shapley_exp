@@ -13,8 +13,6 @@ from torch.optim import *
 
 from training import *
 from dataset import *
-from shapley import *
-from dataset import *
 from model import *
 
 def main(args):
