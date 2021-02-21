@@ -117,8 +117,8 @@ class EstimateModel():
         for i in range(19):
             t = round(0.05 + i*0.05, 3)
             features = s.extract_features(outputs, top=t)
-            diff, std = s.loss_difference(features, self.criterion, resample=self.train_config.loss_difference_resample)
-            logging.info(f"[{self.model_name}][top diff std] ({t}, {round(diff, 4)}, {round(std, 4)})")
-            losses.append((t, diff, std))
+            diff_abs, std_abs, diff, std = s.loss_difference(features, self.criterion, resample=self.train_config.loss_difference_resample)
+            logging.info(f"[{self.model_name}][abs base] ({t}, ({round(diff_abs, 4)}, {round(std_abs, 4)}), ({round(diff, 4)}, {round(std, 4)}))")
+            losses.append((t, diff_abs, std_abs, diff, std))
 
         return torch.tensor(losses)
