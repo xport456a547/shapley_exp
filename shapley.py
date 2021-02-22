@@ -323,7 +323,7 @@ class DeepLiftModel(BaseExplanationModel):
         for i, data in enumerate(data_loader):
             _, img, __, ___ = data 
 
-            shapley_score, label = self._fit(_, img)
+            shapley_score, label = self._fit(_, img, zero_baseline)
             outputs.append((_, img.cpu(), __, shapley_score.detach().cpu(), label.detach().cpu()))
 
             if i + 1 == n_samples:

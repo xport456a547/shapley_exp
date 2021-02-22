@@ -71,8 +71,18 @@ def save_matrices(outputs, loss, path):
         output = torch.cat(output, dim=0).cpu().numpy()
 
         logging.info(f"Saving {name} {output.shape}")
-        with open(path + '/shapley/' + name + '.npy', 'wb') as f:
-            np.save(f, output)
+
+        if name == "base":
+            os.makedirs("tmp/base")
+            with open('tmp/base/' + name + '.npy', 'wb') as f:
+                np.save(f, output)
+        elif name == "segmentation":
+            os.makedirs("tmp/base")
+            with open('tmp/base/' + name + '.npy', 'wb') as f:
+                np.save(f, output)
+        else:
+            with open(path + '/shapley/' + name + '.npy', 'wb') as f:
+                np.save(f, output)
 
     logging.info(f"Saving loss {loss.shape}")
     with open(path + '/shapley/loss.npy', 'wb') as f:

@@ -26,7 +26,7 @@ def get_paths(file):
         return f.read().splitlines()
 
 def get_datasets(path):
-    return np.load(path + "/shapley/base.npy"), np.load(path + "/shapley/processed.npy"), np.load(path + "/shapley/segmentation.npy")
+    return np.load("tmp/base/base.npy"), np.load(path + "/shapley/processed.npy"), np.load("tmp/base/segmentation.npy")
 
 def get_names(paths):
     names = []
