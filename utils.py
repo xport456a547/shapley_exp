@@ -29,6 +29,11 @@ def prepare_output_directory(train_config, model_config):
     else:
         path += "_scratch"  
 
+    if train_config.mask_inputs:
+        path += "_masked"
+    else:
+        path += "_unmasked"
+
     try:
         path += "_" + str(model_config.block_size) 
         path += "_" + str(model_config.stride) 

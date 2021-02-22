@@ -1,6 +1,7 @@
 __pycache__
 datasets
 tmp/*
+saved_imgs/*
 outputs
 .vscode
 _.py

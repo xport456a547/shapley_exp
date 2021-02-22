@@ -10,7 +10,11 @@ class EstimateModel():
         self.train_config = train_config 
 
         self.criterion = criterion
-        self.noise_distribution = noise_distribution
+
+        if noise_distribution is None:
+            self.noise_distribution = (0, 0)
+        else:
+            self.noise_distribution = noise_distribution
 
         self.model_name = model_config.model
 

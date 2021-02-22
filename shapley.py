@@ -535,10 +535,101 @@ class EqualXSurplusModel(BaseExplanationModel):
         shapley_values_sup /= masks
         return shapley_values_inf, shapley_values_sup
 
+class SampledEqualXSurplusModel(BaseExplanationModel):
+
+    def __init__(self, model, criterion=None, noise_distribution=(0, 0), batch_size=16, extra_context=1, device="cuda"):
+
+        super().__init__(model, criterion, noise_distribution, batch_size, device)
+        self.extra_context = extra_context
+
+    def fit(self, data_loader, n_samples=16, n_reestimations=128):
+        
+        self.model.eval()
+        outputs = []
+
+        for i, data in enumerate(data_loader):
+            _, img, __, ___ = data 
+
+            shapley_score, label = self._fit(img, n_reestimations)
+            outputs.append((_, img.cpu(), __, shapley_score.detach().cpu(), label.detach().cpu()))
+
+            if i + 1 == n_samples:
+                break
+        return outputs
+
+    def _fit(self, sample, n_reestimations):
+        
+        _, c, h, w = sample.size()
+
+        v_n, label, gradient = self.initial_step(sample, return_grad=True)
+
+        #probs = torch.softmax(gradient.reshape(-1), dim=-1)
+        
+        count = 0
+        values_inf = 0
+        values_sup = 0 
+        mask_sum = torch.zeros_like(gradient) + 1e-6
+
+        count = 0
+        while count < n_reestimations:
+
+            n = min(self.batch_size, n_reestimations - count)
+
+            label = label.to(self.device)
+            sample = sample.to(self.device).expand(n, -1, -1, -1)
+
+            #mask = self.sample(probs.expand(n, -1)).reshape(n, 1, h, w)
+            mask = self.sample((torch.ones_like(probs) / (h * w)).expand(n, -1)).reshape(n, 1, h, w)
+
+            noise, noise_mask = self.get_noise(mask)
+
+            with torch.no_grad():
+                values_sup += (self.step(sample * (1 - mask) + mask * noise, label.expand(n)) * mask).sum(dim=0, keepdim=True)
+                values_inf += (self.step(sample * mask + (1 - mask) * noise, label.expand(n)) * mask).sum(dim=0, keepdim=True)
+
+            mask_sum += mask.sum(dim=0, keepdim=True)
+            count += n
+
+        values_inf /= mask_sum 
+        values_sup /= mask_sum 
+
+        values_sup = v_n - values_sup
+
+        sum_inf = values_inf.reshape(1, 1, -1).sum(dim=-1, keepdim=True).unsqueeze(-1)
+        sum_sup = values_sup.reshape(1, 1, -1).sum(dim=-1, keepdim=True).unsqueeze(-1)
+        probs = probs.reshape(1, 1, h, w)
+
+        w_ = (v_n - sum_sup) / (sum_inf - sum_sup)
+
+        values = values_inf * w_ + (1 - w_) * values_sup
+        values = values.mean(dim=1, keepdim=True)
+        print(w_)
+
+        return values, label
+
+
+    def sample(self, probs):
+
+        mask = 0
+        for i in range(2):
+            sample = Categorical(probs=probs).sample()
+            mask += nn.functional.one_hot(sample, num_classes=probs.size()[-1]).float()
+        mask[mask > 1] = 1
+        return mask
+
+    def sample2(self, x, n):
+        _, c, h, w = x.size()
+        x = x.reshape(-1)
+        _, idx = torch.topk(x, k=n, largest=True)
+        output = torch.zeros(n, c*h*w, device=x.device)
+
+        idx = idx.unsqueeze(-1)
+        output = torch.scatter(output, dim=-1, index=idx, src=torch.ones_like(idx).float())
+        return output.reshape(n, c, h, w)
 
 
 ###TEST
-class SampledXLossModel(BaseExplanationModel):
+class SampledXLossModel_old(BaseExplanationModel):
 
     def __init__(self, model, criterion=None, noise_distribution=(0, 0), batch_size=16, extra_context=1, device="cuda"):
 

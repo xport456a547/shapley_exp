@@ -25,7 +25,7 @@ def main(args):
     copyfile(train_config_path, output_path + "/" + train_config_path.split("/")[-1])
     copyfile(model_config_path, output_path + "/" + model_config_path.split("/")[-1])
 
-    if model_config.mask_inputs:
+    if train_config.mask_inputs:
         distribution = (model_config.mask_mean, model_config.mask_std)
     else:
         distribution = None

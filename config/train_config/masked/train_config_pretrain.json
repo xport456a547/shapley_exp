@@ -1,0 +1,15 @@
+{
+    "from_pretrained": true,
+
+    "lr": 1e-4,
+    "epochs": 2,
+    "train_batch_size": 32,
+    "test_batch_size": 128,
+
+    "test_size": 1024,
+    "mask_inputs": true,
+    "loss_difference_resample": 16,
+
+    "seed": 123,
+    "device": "cuda"
+}

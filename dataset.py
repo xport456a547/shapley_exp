@@ -79,6 +79,11 @@ class TrainingDataset():
         mask = mask.astype(np.float32)
         mask[mask == 1.0] = 1.0
         mask[(mask == 2.0) | (mask == 3.0)] = 0.0
+
+        """
+        if np.all(mask == 0):
+            mask = np.ones_like(mask)
+        """
         return mask
 
     def get_image(self, d, noise):

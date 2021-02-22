@@ -2,8 +2,7 @@
     "model": "deeplift",
 
     "zero_baseline": true,
-    
-    "mask_inputs": true,
+
     "mask_mean": 0,
     "mask_std": 1
 }
