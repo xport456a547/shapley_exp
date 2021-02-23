@@ -10,7 +10,7 @@
     "mask_inputs": true,
     "mask_mean": 0,
     "mask_std": 0,
-    "loss_difference_resample": 16,
+    "loss_difference_resample": 1,
 
     "seed": 123,
     "device": "cuda"
