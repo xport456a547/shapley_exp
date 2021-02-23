@@ -8,8 +8,10 @@
 
     "test_size": 1024,
     "mask_inputs": false,
+    "mask_mean": 0,
+    "mask_std": 0,
     "loss_difference_resample": 1,
-
+    
     "seed": 123,
     "device": "cuda"
 }

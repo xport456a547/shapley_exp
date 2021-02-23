@@ -1,8 +1,5 @@
 {
     "model": "deeplift",
 
-    "zero_baseline": true,
-
-    "mask_mean": 0,
-    "mask_std": 1
+    "zero_baseline": true
 }

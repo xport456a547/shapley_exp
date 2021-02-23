@@ -26,9 +26,10 @@ def main(args):
     copyfile(model_config_path, output_path + "/" + model_config_path.split("/")[-1])
 
     if train_config.mask_inputs:
-        distribution = (model_config.mask_mean, model_config.mask_std)
+        distribution = (train_config.mask_mean, train_config.mask_std)
     else:
         distribution = None
+        
     train_loader, test_loader, shapley_loader = get_loaders(train_config, distribution)
     model = build_model(train_config, train_loader, test_loader)
 

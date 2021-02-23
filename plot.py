@@ -52,30 +52,39 @@ def get_top(shapley, top):
     return mask.reshape(1, 224, 224)
 
 def filter_imgs(base, shapleys, top, n_samples, segmentation=None):
-    outputs = []
+    outputs, masks = [], []
+
     top = int(top * 224 * 224)
     if segmentation is not None:
         segmentation = np.mean(segmentation.reshape(-1, 224*224), axis=-1)
 
     for shapley in shapleys:
-        filtered_imgs = []
+        filtered_imgs, m = [], []
 
         for i in range(n_samples):
 
             if segmentation is not None:
                 top = int(segmentation[i] * 224 * 224)
 
-            sample = get_top(shapley[i], top) * base[i]
+            mask = get_top(shapley[i], top)
+            sample = mask * base[i]
+
             sample[sample == 0] = 0.15
+            mask[mask == 0] = 0.15
 
             filtered_imgs.append(sample.numpy())
+            m.append(mask.expand(3, -1, -1).numpy())
+
         outputs.append(filtered_imgs)
-    return outputs
+        masks.append(m)
+    return outputs, masks
 
 def plot(base, processed, filtered_imgs, names, n_samples, path):
 
     for n in range(config.n_samples):
-        fig, axs = plt.subplots(nrows=1, ncols=2 + len(names), figsize=(3 * (len(names)), 6))
+        fig, axs = plt.subplots(nrows=2, ncols=2 + len(names), figsize=(3 * (len(names)), 6))
+        j = 0
+
         for i, ax in enumerate(axs):
             if i == 0:
                 ax.imshow(base[n].transpose(1, 2, 0))
@@ -89,7 +98,40 @@ def plot(base, processed, filtered_imgs, names, n_samples, path):
                 ax.imshow(filtered_imgs[i-2][n].transpose(1, 2, 0))
                 ax.set_title(str(names[i-2]))
                 ax.axis("off")
-        
+
+        plt.savefig(path + "/" + str(n))
+        plt.close()
+
+def plot(base, processed, segmentation, filtered_imgs, masks, names, n_samples, path):
+
+    segmentation[segmentation == 0] = 0.15
+
+    for n in range(config.n_samples):
+        fig, axs = plt.subplots(nrows=2, ncols=2 + len(names), figsize=(3 * (len(names)), 6))
+        j = 0
+
+        for j, axx in enumerate(axs):
+            for i, ax in enumerate(axx):
+                if i == 0:
+                    ax.imshow(base[n].transpose(1, 2, 0))
+                    if j == 0: ax.set_title("initial")
+                    ax.axis("off")
+                elif i == 1:
+                    if j == 0:
+                        ax.imshow(processed[n].transpose(1, 2, 0))
+                        ax.set_title("processed")
+                    else:
+                        ax.imshow(segmentation[n].transpose(1, 2, 0)[...,0], cmap="gray")
+                    ax.axis("off")
+                else:
+                    if j == 0:
+                        ax.imshow(filtered_imgs[i-2][n].transpose(1, 2, 0))
+                        ax.set_title(str(names[i-2]))
+                    else:
+                        ax.imshow(masks[i-2][n].transpose(1, 2, 0)) 
+                    ax.axis("off")
+
+        plt.tight_layout()
         plt.savefig(path + "/" + str(n))
         plt.close()
 
@@ -131,11 +173,14 @@ shapleys = get_shapley(paths)
 saving_path = make_dirs()
 
 #IMGS
-filtered_imgs = filter_imgs(base, shapleys, config.top, config.n_samples)
-plot(base, processed, filtered_imgs, names, config.n_samples, saving_path + "/top")
+filtered_imgs, masks = filter_imgs(base, shapleys, config.top, config.n_samples)
+#plot(base, processed, filtered_imgs, names, config.n_samples, saving_path + "/top")
+#plot(base, processed, masks, names, config.n_samples, saving_path + "/top")
+plot(base, processed, segmentation, filtered_imgs, masks, names, config.n_samples, saving_path + "/top")
 
-filtered_imgs = filter_imgs(base, shapleys, config.top, config.n_samples, segmentation)
-plot(base, processed, filtered_imgs, names, config.n_samples, saving_path + "/segmented")
+filtered_imgs, masks = filter_imgs(base, shapleys, config.top, config.n_samples, segmentation)
+#plot(base, processed, filtered_imgs, names, config.n_samples, saving_path + "/segmented")
+plot(base, processed, segmentation, filtered_imgs, masks, names, config.n_samples, saving_path + "/segmented")
 
 #CURVES
 idx, ab, line = get_curves(paths)

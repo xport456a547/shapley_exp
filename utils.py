@@ -34,6 +34,9 @@ def prepare_output_directory(train_config, model_config):
     else:
         path += "_unmasked"
 
+    path += "_" + str(train_config.mask_mean)
+    path += "_" + str(train_config.mask_std)
+
     try:
         path += "_" + str(model_config.block_size) 
         path += "_" + str(model_config.stride) 
@@ -72,12 +75,10 @@ def save_matrices(outputs, loss, path):
 
         logging.info(f"Saving {name} {output.shape}")
 
-        if name == "base":
-            os.makedirs("tmp/base")
-            with open('tmp/base/' + name + '.npy', 'wb') as f:
-                np.save(f, output)
-        elif name == "segmentation":
-            os.makedirs("tmp/base")
+        try: os.makedirs("tmp/base")
+        except: pass
+
+        if name == "base" or name == "segmentation":
             with open('tmp/base/' + name + '.npy', 'wb') as f:
                 np.save(f, output)
         else:
