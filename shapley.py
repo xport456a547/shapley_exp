@@ -12,6 +12,7 @@ from captum.attr import (
     DeepLift,
     DeepLiftShap,
     IntegratedGradients,
+    Occlusion
 )
 
 
@@ -304,9 +305,9 @@ class GradientShapModel(BaseExplanationModel):
             label = self.model(sample).argmax(dim=-1)
 
             if zero_baseline:
-                attributions = ig.attribute(sample, baselines=torch.zeros_like(sample), stdevs=float(self.noise_distribution[-1]), n_samples=n_reestimations, target=label, return_convergence_delta=False).float()
+                attributions = ig.attribute(sample, baselines=torch.zeros_like(sample), stdevs=1.0, n_samples=n_reestimations, target=label, return_convergence_delta=False).float()
             else:
-                attributions = ig.attribute(sample, baselines=sample, stdevs=float(self.noise_distribution[-1]), target=label, n_samples=n_reestimations, return_convergence_delta=False).float()
+                attributions = ig.attribute(sample, baselines=sample, stdevs=1.0, target=label, n_samples=n_reestimations, return_convergence_delta=False).float()
         return attributions.mean(dim=1, keepdim=True), label
 
 class DeepLiftModel(BaseExplanationModel):
@@ -350,22 +351,33 @@ class DeepLiftShapModel(BaseExplanationModel):
 
         super().__init__(model, criterion, noise_distribution, device)
 
-    def fit(self, data_loader, n_samples=16, n_reestimations=16, zero_baseline=True):
+    def get_distribution(self, data_loader, size=16):
+        d = []
+        for i, data in enumerate(data_loader):
+            _, img, __, ___ = data 
+            d.append(img)
+            if i == size - 1:
+                break
+        return torch.cat(d, dim=0)
+
+    def fit(self, data_loader, n_samples=16, zero_baseline=True, baseline_size=16):
         
         self.model.eval()
-        outputs = []
 
+        d = self.get_distribution(data_loader, baseline_size)
+
+        outputs = []
         for i, data in enumerate(data_loader):
             _, img, __, ___ = data 
 
-            shapley_score, label = self._fit(_, img, n_reestimations, zero_baseline)
+            shapley_score, label = self._fit(d, img, zero_baseline)
             outputs.append((_, img.cpu(), __, shapley_score.detach().cpu(), label.detach().cpu()))
 
             if i + 1 == n_samples:
                 break
         return outputs
 
-    def _fit(self, raw_img, sample, n_reestimations, zero_baseline):
+    def _fit(self, d, sample, zero_baseline):
         
         with torch.no_grad():
             ig = DeepLiftShap(self.model)
@@ -373,9 +385,47 @@ class DeepLiftShapModel(BaseExplanationModel):
             label = self.model(sample).argmax(dim=-1)
 
             if zero_baseline:
-                attributions = ig.attribute(sample, baselines=torch.zeros_like(sample), stdevs=float(self.noise_distribution[-1]), n_samples=n_reestimations, target=label, return_convergence_delta=False).float()
+                attributions = ig.attribute(sample, baselines=torch.zeros_like(sample.expand(2, -1, -1, -1)), target=label, return_convergence_delta=False).float()
             else:
-                attributions = ig.attribute(sample, baselines=sample, stdevs=float(self.noise_distribution[-1]), target=label, n_samples=n_reestimations, return_convergence_delta=False).float()
+                attributions = ig.attribute(sample, baselines=d.to(self.device), target=label, return_convergence_delta=False).float()
+        return attributions.mean(dim=1, keepdim=True), label
+
+class OcclusionModel(BaseExplanationModel):
+
+    def __init__(self, model, criterion=None, noise_distribution=None, device="cuda"):
+
+        super().__init__(model, criterion, noise_distribution, device)
+
+    def fit(self, data_loader, n_samples=16, strides=8, sliding_window_shapes=(3, 16, 16)):
+        
+        self.model.eval()
+        outputs = []
+
+        for i, data in enumerate(data_loader):
+            _, img, __, ___ = data 
+
+            shapley_score, label = self._fit(_, img, strides, sliding_window_shapes)
+            outputs.append((_, img.cpu(), __, shapley_score.detach().cpu(), label.detach().cpu()))
+
+            if i + 1 == n_samples:
+                break
+        return outputs
+
+    def _fit(self, raw_img, sample, strides, sliding_window_shapes):
+        
+        with torch.no_grad():
+            ig = Occlusion(self.model)
+            sample = sample.to(self.device)
+            label = self.model(sample).argmax(dim=-1)
+
+            attributions = ig.attribute(
+                sample, 
+                strides=strides,
+                sliding_window_shapes=sliding_window_shapes,
+                baselines=torch.normal(torch.zeros_like(sample) + self.noise_distribution[0], std=torch.zeros_like(sample) + self.noise_distribution[1]), 
+                target=label, 
+                ).float()
+
         return attributions.mean(dim=1, keepdim=True), label
 
 class EqualSurplusModel(BaseExplanationModel):
@@ -414,6 +464,7 @@ class EqualSurplusModel(BaseExplanationModel):
 
         with torch.no_grad():
             inf_values = self.shapley_loop(loader, k_reestimate)
+
         scores = inf_values + (v_n - inf_values.sum()) / inf_values.shape[0]
 
         return (scores, predicted_label)
@@ -483,19 +534,14 @@ class EqualXSurplusModel(BaseExplanationModel):
             inf_values, sup_values = self.shapley_loop(loader, k_reestimate)
         
         sup_values = v_n - sup_values
+
         inf_sum = inf_values.sum()
         sup_sum = sup_values.sum()
         
         w = (v_n - sup_sum) / (inf_sum - sup_sum)
         scores = w * inf_values + (1 - w) * sup_values 
-        
-        #scores += gradient.norm(dim=1, keepdim=True)
-        #scores = self.minmax(scores) + self.minmax(gradient.norm(dim=1, keepdim=True))
-        #probs = torch.softmax(gradient.norm(dim=1, keepdim=True).flatten(), dim=-1).reshape(1, 1, *scores.size()[-2:])
-        
-        #scores += gradient.norm(dim=1, keepdim=True)
+
         print(w)
-        #print(torch.min(a), torch.max(a))
         return (scores, predicted_label)
 
     def shapley_loop(self, data, k_reestimate):
@@ -534,6 +580,56 @@ class EqualXSurplusModel(BaseExplanationModel):
         shapley_values_inf /= masks
         shapley_values_sup /= masks
         return shapley_values_inf, shapley_values_sup
+
+class GradientNormModel(BaseExplanationModel):
+
+    def __init__(self, model, criterion=None, noise_distribution=(0, 0), batch_size=16, extra_context=1, device="cuda"):
+
+        super().__init__(model, criterion, noise_distribution, batch_size, device)
+        self.extra_context = extra_context
+
+    def fit(self, data_loader, n_samples=16, smoothing_window=1):
+        
+        self.model.eval()
+        outputs = []
+
+        for i, data in enumerate(data_loader):
+            _, img, __, ___ = data 
+
+            shapley_score, label = self._fit(img, smoothing_window)
+            outputs.append((_, img.cpu(), __, shapley_score.detach().cpu(), label.detach().cpu()))
+
+            if i + 1 == n_samples:
+                break
+        return outputs
+
+    def _fit(self, sample, smoothing_window):
+        
+        _, c, h, w = sample.size()
+        v_n, label, gradient = self.initial_step(sample, return_grad=True)
+        gradient = gradient.norm(dim=1, keepdim=True)
+        gradient = nn.AvgPool2d(kernel_size=smoothing_window, stride=1, padding=smoothing_window//2)(gradient)
+        return gradient, label
+
+
+    def sample(self, probs):
+
+        mask = 0
+        for i in range(2):
+            sample = Categorical(probs=probs).sample()
+            mask += nn.functional.one_hot(sample, num_classes=probs.size()[-1]).float()
+        mask[mask > 1] = 1
+        return mask
+
+    def sample2(self, x, n):
+        _, c, h, w = x.size()
+        x = x.reshape(-1)
+        _, idx = torch.topk(x, k=n, largest=True)
+        output = torch.zeros(n, c*h*w, device=x.device)
+
+        idx = idx.unsqueeze(-1)
+        output = torch.scatter(output, dim=-1, index=idx, src=torch.ones_like(idx).float())
+        return output.reshape(n, c, h, w)
 
 class SampledEqualXSurplusModel(BaseExplanationModel):
 
@@ -579,7 +675,7 @@ class SampledEqualXSurplusModel(BaseExplanationModel):
             sample = sample.to(self.device).expand(n, -1, -1, -1)
 
             #mask = self.sample(probs.expand(n, -1)).reshape(n, 1, h, w)
-            mask = self.sample((torch.ones_like(probs) / (h * w)).expand(n, -1)).reshape(n, 1, h, w)
+            mask = self.sample((torch.ones_like(gradient.reshape(-1)) / (h * w)).expand(n, -1)).reshape(n, 1, h, w)
 
             noise, noise_mask = self.get_noise(mask)
 
@@ -603,7 +699,6 @@ class SampledEqualXSurplusModel(BaseExplanationModel):
 
         values = values_inf * w_ + (1 - w_) * values_sup
         values = values.mean(dim=1, keepdim=True)
-        print(w_)
 
         return values, label
 

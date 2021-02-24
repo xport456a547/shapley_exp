@@ -1,0 +1,10 @@
+{
+    "model": "equalsurplus",
+
+    "k_reestimate": 1,
+    "block_size": 32,
+    "stride": 8,
+
+    "full_mask_only": false,
+    "circular_mask": true
+}

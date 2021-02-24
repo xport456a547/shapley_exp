@@ -7,26 +7,27 @@ from types import SimpleNamespace
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torch.nn as nn
 import time 
 
-def make_dirs():
-    saving_path = "saved_imgs/" + time.strftime("%Y%m%d%H%M%S") 
+def get_config(file):
+    with open(file, 'r') as f:
+        return json.loads(f.read(), object_hook=lambda d: SimpleNamespace(**d))
+
+def make_dirs(name):
+    saving_path = "saved_imgs/" + name + "_" + time.strftime("%Y%m%d%H%M%S") 
     os.makedirs(saving_path)    
     os.makedirs(saving_path + "/top")
     os.makedirs(saving_path + "/segmented")
     os.makedirs(saving_path + "/loss")
     return saving_path
 
-def get_config(file):
-    with open(file, 'r') as f:
-        return json.loads(f.read(), object_hook=lambda d: SimpleNamespace(**d))
-
 def get_paths(file):
     with open(file, "r", encoding="utf-8") as f:
         return f.read().splitlines()
 
 def get_datasets(path):
-    return np.load("tmp/base/base.npy"), np.load(path + "/shapley/processed.npy"), np.load("tmp/base/segmentation.npy")
+    return np.load("tmp/base/base.npy")[:N_SAMPLES], np.load(path + "/shapley/processed.npy")[:N_SAMPLES], np.load("tmp/base/segmentation.npy")[:N_SAMPLES]
 
 def get_names(paths):
     names = []
@@ -41,7 +42,12 @@ def get_names(paths):
 def get_shapley(paths):
     shapleys = []
     for path in paths:
-        shapleys.append(np.load(path + "/shapley/shapley.npy"))
+        l = np.load(path + "/shapley/shapley.npy")[:N_SAMPLES]
+        if SMOOTHING_WINDOW > 1:
+            l = nn.ConstantPad2d(SMOOTHING_WINDOW//2, -1000)(torch.tensor(l))
+            #l = nn.AvgPool2d(SMOOTHING_WINDOW, 1, SMOOTHING_WINDOW//2)(torch.tensor(l)).numpy()
+            l = nn.AvgPool2d(SMOOTHING_WINDOW, 1)(l).numpy()
+        shapleys.append(l)
     return shapleys
 
 def get_top(shapley, top):
@@ -104,7 +110,8 @@ def plot(base, processed, filtered_imgs, names, n_samples, path):
 
 def plot(base, processed, segmentation, filtered_imgs, masks, names, n_samples, path):
 
-    segmentation[segmentation == 0] = 0.15
+    contour = segmentation.copy()
+    contour[contour == 0] = 0.15
 
     for n in range(config.n_samples):
         fig, axs = plt.subplots(nrows=2, ncols=2 + len(names), figsize=(3 * (len(names)), 6))
@@ -121,7 +128,7 @@ def plot(base, processed, segmentation, filtered_imgs, masks, names, n_samples, 
                         ax.imshow(processed[n].transpose(1, 2, 0))
                         ax.set_title("processed")
                     else:
-                        ax.imshow(segmentation[n].transpose(1, 2, 0)[...,0], cmap="gray")
+                        ax.imshow(contour[n].transpose(1, 2, 0)[...,0], cmap="gray")
                     ax.axis("off")
                 else:
                     if j == 0:
@@ -157,20 +164,23 @@ def plot_lines(idx, ab, line, saving_path, names):
     plt.ylabel("Avg. prob. difference")
     plt.xlabel("Top % pixels kept")
     plt.savefig(saving_path + "/loss/avg")
-    
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--plot_config", help="path to the trainer config", type=str, default="config/plot_config/plot_config.json")
-parser.add_argument("--plot_list", help="path to the trainer config", type=str, default="config/plot_config/plot")
+parser.add_argument("--plot_list", help="path to the trainer config", type=str, default="config/plot_config/plot_masked_0_1")
 args = parser.parse_args()
 
-
+ 
 config = get_config(args.plot_config)
 paths = get_paths(args.plot_list)
+N_SAMPLES = config.n_samples
+SMOOTHING_WINDOW = config.smoothing_window
+
 base, processed, segmentation = get_datasets(paths[0])
 names = get_names(paths)
 shapleys = get_shapley(paths)
-saving_path = make_dirs()
+saving_path = make_dirs(args.plot_list.split("/")[-1])
 
 #IMGS
 filtered_imgs, masks = filter_imgs(base, shapleys, config.top, config.n_samples)

@@ -56,7 +56,7 @@ class EstimateModel():
                 )
 
         elif self.model_name == "deepliftshap":
-            s = GradientShapModel(
+            s = DeepLiftShapModel(
                 model=model, 
                 criterion=self.criterion, 
                 noise_distribution=self.noise_distribution, 
@@ -66,8 +66,8 @@ class EstimateModel():
             outputs = s.fit(
                 shapley_loader, 
                 n_samples=self.train_config.test_size, 
-                n_reestimations=self.model_config.n_reestimations, 
-                zero_baseline=self.model_config.zero_baseline
+                zero_baseline=self.model_config.zero_baseline,
+                baseline_size=self.model_config.baseline_size
                 )
 
         elif self.model_name == "equalsurplus":
@@ -107,6 +107,31 @@ class EstimateModel():
             )
 
             outputs = s.fit(shapley_loader, mask, n_samples=self.train_config.test_size, k_reestimate=self.model_config.k_reestimate)
+        
+        elif self.model_name == "occlusion":
+            s = OcclusionModel(
+                model=model, 
+                criterion=self.criterion, 
+                noise_distribution=self.noise_distribution,  
+                device=self.train_config.device
+                )
+
+            outputs = s.fit(
+                shapley_loader,  
+                n_samples=self.train_config.test_size, 
+                strides=self.model_config.stride, 
+                sliding_window_shapes=(3, self.model_config.block_size, self.model_config.block_size)
+                )
+                
+        elif self.model_name == "gradientnorm":
+            s = GradientNormModel(
+                model=model, 
+                criterion=self.criterion, 
+                noise_distribution=self.noise_distribution,  
+                device=self.train_config.device
+                )
+
+            outputs = s.fit(shapley_loader, n_samples=self.train_config.test_size, smoothing_window=self.model_config.smoothing_window)
 
         segmentation_accuracy = s.segmentation_accuracy(outputs)
         logging.info(f"[{self.model_name}][Segmentation acc] {round(segmentation_accuracy, 4)}")
