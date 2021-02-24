@@ -130,7 +130,7 @@ class TrainingDataset():
             url="https://www.robots.ox.ac.uk/~vgg/data/pets/data/images.tar.gz", filepath=filepath,
         )
         """
-        self.extract_archive(filepath)
+        #self.extract_archive(filepath)
 
         filepath = os.path.join(dataset_directory, "annotations.tar.gz")
         """
@@ -138,7 +138,7 @@ class TrainingDataset():
             url="https://www.robots.ox.ac.uk/~vgg/data/pets/data/annotations.tar.gz", filepath=filepath,
         )
         """
-        self.extract_archive(filepath)
+        #self.extract_archive(filepath)
 
         annotation_file = open(os.path.join(dataset_directory, "annotations/list.txt")).readlines()[6:]
 
