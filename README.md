@@ -2,7 +2,7 @@
 
 Requires pytorch 1.6 and
 ```
-pip install captum
+pip install captum tqdm scipy imageio
 ```
 Get dataset
 ```
