@@ -1,7 +1,10 @@
 __pycache__
+.vscode
 datasets
 tmp/*
 saved_imgs/*
+config/plot_config
+post_process/*
 outputs
 .vscode
 _.py
@@ -9,3 +12,7 @@ nohup.out
 run_script.sh
 run_script2.sh
 test.ipynb
+run_script3.sh
+.gitignore
+run_script4.sh
+config/plot_config/plot_config.json

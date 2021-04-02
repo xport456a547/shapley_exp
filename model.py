@@ -18,7 +18,7 @@ class EstimateModel():
 
         self.model_name = model_config.model
 
-    def fit(self, model, shapley_loader):
+    def fit(self, model, shapley_loader, criterion):
 
         if self.model_name == "deeplift":
             s = DeepLiftModel(
@@ -89,8 +89,8 @@ class EstimateModel():
 
             outputs = s.fit(shapley_loader, mask, n_samples=self.train_config.test_size, k_reestimate=self.model_config.k_reestimate)
 
-        elif self.model_name == "equalxsurplus":
-            s = EqualXSurplusModel(
+        elif self.model_name == "fesp":
+            s = FESPModel(
                 model=model, 
                 criterion=self.criterion, 
                 noise_distribution=self.noise_distribution, 
@@ -136,17 +136,17 @@ class EstimateModel():
         segmentation_accuracy = s.segmentation_accuracy(outputs)
         logging.info(f"[{self.model_name}][Segmentation acc] {round(segmentation_accuracy, 4)}")
         
-        loss = self.loss_difference_experiment(s, outputs)
+        loss = self.loss_difference_experiment(s, outputs, criterion)
 
         return outputs, loss
 
-    def loss_difference_experiment(self, s, outputs):
+    def loss_difference_experiment(self, s, outputs, criterion):
 
         losses = []
         for i in range(19):
             t = round(0.05 + i*0.05, 3)
             features = s.extract_features(outputs, top=t)
-            diff_abs, std_abs, diff, std = s.loss_difference(features, self.criterion, resample=self.train_config.loss_difference_resample)
+            diff_abs, std_abs, diff, std = s.loss_difference(features, criterion, resample=self.train_config.loss_difference_resample)
             logging.info(f"[{self.model_name}][abs base] ({t}, ({round(diff_abs, 4)}, {round(std_abs, 4)}), ({round(diff, 4)}, {round(std, 4)}))")
             losses.append((t, diff_abs, std_abs, diff, std))
 

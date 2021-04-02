@@ -33,6 +33,11 @@ def prepare_output_directory(train_config, model_config):
         path += "_masked"
     else:
         path += "_unmasked"
+    
+    if train_config.all_classes:
+        path += "_all"
+    else:
+        path += "_binary"
 
     path += "_" + str(train_config.mask_mean)
     path += "_" + str(train_config.mask_std)

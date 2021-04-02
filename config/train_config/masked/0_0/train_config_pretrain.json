@@ -13,5 +13,6 @@
     "loss_difference_resample": 1,
 
     "seed": 123,
+    "all_classes": false,
     "device": "cuda"
 }

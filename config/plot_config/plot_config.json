@@ -1,5 +1,5 @@
 {
-    "n_samples": 32,
-    "top": 0.15,
-    "smoothing_window": 15
+    "n_samples": 128,
+    "top": 0.10,
+    "smoothing_window": 1
 }

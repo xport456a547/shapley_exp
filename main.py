@@ -25,17 +25,24 @@ def main(args):
     copyfile(train_config_path, output_path + "/" + train_config_path.split("/")[-1])
     copyfile(model_config_path, output_path + "/" + model_config_path.split("/")[-1])
 
+    
     if train_config.mask_inputs:
         distribution = (train_config.mask_mean, train_config.mask_std)
     else:
         distribution = None
-        
+    
+    
+
     train_loader, test_loader, shapley_loader = get_loaders(train_config, distribution)
     model = build_model(train_config, train_loader, test_loader)
 
-    criterion = lambda pred, labels: torch.softmax(pred, dim=-1).gather(dim=-1, index=labels.unsqueeze(-1))
-    shapley_model = EstimateModel(model_config, train_config, criterion, distribution)
-    outputs, loss = shapley_model.fit(model, shapley_loader)
+    criterion_test = lambda pred, labels: torch.softmax(pred, dim=-1).gather(dim=-1, index=labels.unsqueeze(-1))
+    criterion_train = lambda pred, labels: torch.softmax(pred, dim=-1).gather(dim=-1, index=labels.unsqueeze(-1))
+    #criterion_train = lambda pred, labels: pred.gather(dim=-1, index=labels.unsqueeze(-1))
+
+    distribution = (train_config.mask_mean, train_config.mask_std)
+    shapley_model = EstimateModel(model_config, train_config, criterion_train, distribution)
+    outputs, loss = shapley_model.fit(model, shapley_loader, criterion_test)
     
     save_matrices(list(zip(*outputs)), loss, output_path)
     

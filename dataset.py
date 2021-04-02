@@ -11,6 +11,7 @@ from urllib.request import urlretrieve
 import torch
 import numpy as np
 from scipy.misc import imread
+import imageio
 
 import multiprocessing
 from multiprocessing.pool import ThreadPool
@@ -22,7 +23,7 @@ import logging
 
 def get_loaders(train_config, distribution):
 
-    dataset = TrainingDataset(random_mask_distribution=distribution)
+    dataset = TrainingDataset(random_mask_distribution=distribution, all_classes=train_config.all_classes)
     train_data, test_data = dataset.get_dataset(train_config.test_size)
 
     logging.info(f"Train size {len(train_data)} / Test size {len(test_data)}")
@@ -43,9 +44,10 @@ class TqdmUpTo(tqdm):
 
 class TrainingDataset():
 
-    def __init__(self, random_mask_distribution=None):
+    def __init__(self, random_mask_distribution=None, all_classes=False):
 
         self.random_mask_distribution = random_mask_distribution
+        self.all_classes = all_classes
     
     def get_dataset(self, test_size=1024):
         
@@ -103,14 +105,20 @@ class TrainingDataset():
         dataset_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datasets/oxford-iiit-pet")
         data = d.split()
         
-        name, label = data[0], int(data[2]) - 1
+        if self.all_classes:
+            name, label = data[0], int(data[1]) - 1
+        else:
+            name, label = data[0], int(data[2]) - 1
 
-        img_base = torch.tensor(imread(os.path.join(dataset_directory, "images/" + name + ".jpg"), mode="RGB").transpose(2, 0, 1)).float()
+        #img_base = torch.tensor(imread(os.path.join(dataset_directory, "images/" + name + ".jpg"), mode="RGB").transpose(2, 0, 1)).float()
+        img_base = torch.tensor(imageio.imread(os.path.join(dataset_directory, "images/" + name + ".jpg"), pilmode="RGB").transpose(2, 0, 1)).float()
 
         img = transform(img_base/255)
         img_base = transform_base(img_base/255)
 
-        segmentation = imread(os.path.join(dataset_directory, "annotations/trimaps/" + name + ".png"), mode="L")
+        #segmentation = imread(os.path.join(dataset_directory, "annotations/trimaps/" + name + ".png"), mode="L")
+        segmentation = imageio.imread(os.path.join(dataset_directory, "annotations/trimaps/" + name + ".png"), pilmode="L")
+
         segmentation = transform_base(torch.tensor(self.preprocess_mask(segmentation)).unsqueeze(0))
 
         if self.random_mask_distribution is not None:
@@ -125,20 +133,8 @@ class TrainingDataset():
         dataset_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datasets/oxford-iiit-pet")
         
         filepath = os.path.join(dataset_directory, "images.tar.gz")
-        """
-        self.download_url(
-            url="https://www.robots.ox.ac.uk/~vgg/data/pets/data/images.tar.gz", filepath=filepath,
-        )
-        """
-        #self.extract_archive(filepath)
 
         filepath = os.path.join(dataset_directory, "annotations.tar.gz")
-        """
-        self.download_url(
-            url="https://www.robots.ox.ac.uk/~vgg/data/pets/data/annotations.tar.gz", filepath=filepath,
-        )
-        """
-        #self.extract_archive(filepath)
 
         annotation_file = open(os.path.join(dataset_directory, "annotations/list.txt")).readlines()[6:]
 
@@ -148,6 +144,11 @@ class TrainingDataset():
             logging.info(f"Masking with N{self.random_mask_distribution} noise")
         else:
             logging.info(f"Skipping segmentation mask")
+
+        if self.all_classes:
+            logging.info("37 classes")
+        else:
+            logging.info("2 classes")
 
         if self.random_mask_distribution is not None:
             z = torch.zeros(len(annotation_file), 3, 224, 224)

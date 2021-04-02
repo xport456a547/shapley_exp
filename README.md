@@ -2,15 +2,15 @@
 
 Requires pytorch 1.6 and
 ```
-pip install captum
+pip install captum tqdm scipy imageio
 ```
 Get dataset
 ```
 sh get_dataset.sh
 ```
-Usage
+Exemple Usage
 ```
 python main.py \
-  --train_config "config/train_config/train_config.json" \
-  --model_config "config/model_config/equalsurplus.json"
+  --train_config "config/train_config/unmasked/train_config_pretrain.json" \
+  --model_config "config/model_config/equalsurplus/equalsurplus_64_8_balanced.json"
 ```

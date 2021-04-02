@@ -17,7 +17,11 @@ def build_model(train_config, train_loader, test_loader):
             param.requires_grad = False
 
     # Change classifier
-    model.classifier[6] = nn.Linear(4096, 2)
+    if train_config.all_classes:
+        model.classifier[6] = nn.Linear(4096, 37)
+    else:
+        model.classifier[6] = nn.Linear(4096, 2)
+        
     model = model.to(train_config.device)
     optimizer = Adam(params=model.parameters(), lr=train_config.lr)
     criterion = nn.CrossEntropyLoss()

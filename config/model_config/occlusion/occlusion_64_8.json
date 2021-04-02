@@ -1,6 +1,6 @@
 {
     "model": "occlusion",
 
-    "block_size": 128,
+    "block_size": 64,
     "stride": 8
 }
