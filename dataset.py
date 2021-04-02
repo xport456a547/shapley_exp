@@ -10,7 +10,6 @@ from urllib.request import urlretrieve
 
 import torch
 import numpy as np
-from scipy.misc import imread
 import imageio
 
 import multiprocessing
@@ -110,15 +109,12 @@ class TrainingDataset():
         else:
             name, label = data[0], int(data[2]) - 1
 
-        #img_base = torch.tensor(imread(os.path.join(dataset_directory, "images/" + name + ".jpg"), mode="RGB").transpose(2, 0, 1)).float()
         img_base = torch.tensor(imageio.imread(os.path.join(dataset_directory, "images/" + name + ".jpg"), pilmode="RGB").transpose(2, 0, 1)).float()
 
         img = transform(img_base/255)
         img_base = transform_base(img_base/255)
 
-        #segmentation = imread(os.path.join(dataset_directory, "annotations/trimaps/" + name + ".png"), mode="L")
         segmentation = imageio.imread(os.path.join(dataset_directory, "annotations/trimaps/" + name + ".png"), pilmode="L")
-
         segmentation = transform_base(torch.tensor(self.preprocess_mask(segmentation)).unsqueeze(0))
 
         if self.random_mask_distribution is not None:

@@ -55,6 +55,13 @@ def prepare_output_directory(train_config, model_config):
     except: pass
 
     path += "_" + time.strftime("%Y%m%d%H%M%S") 
+    import os.path
+    from os import path as p
+    from random import randint
+
+    while p.exists(path):
+        path = path + "_" + str(randint(0, 10000))
+
     os.makedirs(path)
 
     logging.basicConfig(
